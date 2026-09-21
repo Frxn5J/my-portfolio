@@ -4,12 +4,12 @@ import { CSS3DObject, CSS3DRenderer } from 'three/examples/jsm/renderers/CSS3DRe
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 const apps = [
-  { id: 'profile', label: 'Sobre Mí', icon: 'fa-user-astronaut' },
-  { id: 'projects', label: 'Proyectos', icon: 'fa-gamepad' },
-  { id: 'skills', label: 'Trofeos', icon: 'fa-trophy' },
-  { id: 'contact', label: 'Contacto', icon: 'fa-paper-plane' },
-  { id: 'github', label: 'GitHub', icon: 'fa-github', external: 'https://github.com' },
-  { id: 'linkedin', label: 'LinkedIn', icon: 'fa-linkedin-in', external: 'https://linkedin.com' }
+  { id: 'profile', label: 'Sobre Mí', glyph: '◉' },
+  { id: 'projects', label: 'Proyectos', glyph: '✣' },
+  { id: 'skills', label: 'Trofeos', glyph: '🏆' },
+  { id: 'contact', label: 'Contacto', glyph: '➤' },
+  { id: 'github', label: 'GitHub', glyph: 'GH', external: 'https://github.com' },
+  { id: 'linkedin', label: 'LinkedIn', glyph: 'in', external: 'https://linkedin.com' }
 ];
 
 const getViewport = () => {
@@ -37,7 +37,7 @@ function AppWindow({ app, onClose, children }) {
   return (
     <section className={`app-window ${app ? 'active' : ''}`} aria-hidden={!app}>
       <header className="app-header">
-        <h3><i className={`fa-solid ${app?.icon || 'fa-window-maximize'}`} /> {app?.title}</h3>
+        <h3><span className="app-glyph">{app?.glyph || '▣'}</span> {app?.title}</h3>
         <button className="close-btn" type="button" data-close-app aria-label="Cerrar aplicación">×</button>
       </header>
       <div className="app-body">{children}</div>
@@ -62,7 +62,7 @@ const VitaScreen = forwardRef(function VitaScreen({ activeApp, setActiveApp, loc
   return (
     <div id="vita-screen-dom" ref={ref}>
       <div className="status-bar">
-        <div className="status-group"><i className="fa-solid fa-wifi" /><span>FC-VITA</span></div>
+        <div className="status-group"><span className="status-glyph">⌁</span><span>FC-VITA</span></div>
         <div className="status-group"><span>{clock.time}</span></div>
         <div className="status-group"><span>100%</span><div className="battery"><div className="battery-level" /></div></div>
       </div>
@@ -78,18 +78,18 @@ const VitaScreen = forwardRef(function VitaScreen({ activeApp, setActiveApp, loc
           <div className="notification-row"><span className="notification-icon">●</span><span>Nuevo proyecto disponible en tu LiveArea</span></div>
           <div className="notification-row"><span className="notification-icon">✦</span><span>Francisco Castillo · Web Developer</span></div>
         </div>
-        <div className="lock-dev"><i className="fa-solid fa-code" /><span>Francisco Castillo · Web Developer</span></div>
+        <div className="lock-dev"><span className="code-glyph">&lt;/&gt;</span><span>Francisco Castillo · Web Developer</span></div>
       </div>
 
       <div className="home-screen">
         {apps.map((app) => (
           <button className="bubble-item" type="button" key={app.id} data-app-id={app.id}>
-            <span className="bubble-sphere"><i className={`fa-${app.id === 'github' || app.id === 'linkedin' ? 'brands' : 'solid'} ${app.icon}`} /></span>
+            <span className="bubble-sphere"><span className="bubble-glyph">{app.glyph}</span></span>
             <span className="bubble-label">{app.label}</span>
           </button>
         ))}
         <button className="bubble-item" type="button" data-lock-vita>
-          <span className="bubble-sphere bubble-lock"><i className="fa-solid fa-lock" /></span>
+          <span className="bubble-sphere bubble-lock"><span className="bubble-glyph">▣</span></span>
           <span className="bubble-label">Bloquear</span>
         </button>
       </div>
@@ -363,7 +363,7 @@ function App() {
 
       {!isMobile && <>
         <div className="model-status" data-state={modelState.state} role="status" aria-live="polite">{modelState.message}</div>
-        <div className="hint-bar"><i className="fa-solid fa-arrows-up-down-left-right" /><span>Arrastra <strong>por fuera</strong> para rotar la PS Vita · Usa las burbujas para abrir el menú</span></div>
+      <div className="hint-bar"><span className="hint-glyph">✣</span><span>Arrastra <strong>por fuera</strong> para rotar la PS Vita · Usa las burbujas para abrir el menú</span></div>
         <VitaScreen ref={screenRef} activeApp={activeApp} setActiveApp={setActiveApp} locked={locked} setLocked={setLocked} messageSent={messageSent} setMessageSent={setMessageSent} />
       </>}
 
@@ -373,7 +373,7 @@ function App() {
           <p className="warning-kicker">PS VITA INTERFACE</p>
           <h1>Gira tu teléfono</h1>
           <p>Colócalo en posición lateral para cargar la interfaz de la PS Vita.</p>
-          <span className="warning-status"><i className="fa-solid fa-mobile-screen-button" /> Esperando orientación horizontal</span>
+          <span className="warning-status"><span className="warning-glyph">▣</span> Esperando orientación horizontal</span>
         </section>
       )}
 
