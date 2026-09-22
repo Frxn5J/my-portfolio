@@ -277,7 +277,6 @@ function App() {
     const cssScene = new THREE.Scene();
     const vitaRoot = new THREE.Group();
     const cssRoot = new THREE.Group();
-    vitaRoot.rotation.set(Math.PI / 2, 0, 0);
     const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     const cssRenderer = new CSS3DRenderer();
@@ -370,6 +369,7 @@ function App() {
         frameModel(model);
         vitaRoot.add(model);
         const detectedScreen = attachMenuToScreen(model);
+        vitaRoot.rotation.set(Math.PI / 2, 0, 0);
         setModelState({ state: 'ready', message: `Modelo cargado · pantalla detectada: ${detectedScreen}` });
         renderScene();
       } catch (error) {
