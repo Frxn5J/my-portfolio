@@ -75,17 +75,17 @@ function VitaIcon({ type }) {
 
 function AppWindow({ app, onClose, children }) {
   return (
-    <section className={`app-window ${app ? 'active' : ''}`} aria-hidden={!app}>
+    <section className={`app-window ${app ? 'active' : ''}`} role={app ? 'dialog' : undefined} aria-modal={app ? 'true' : undefined} aria-hidden={!app}>
       <header className="app-header">
         <h3><span className="app-glyph"><VitaIcon type={app?.icon || 'lock'} /></span> {app?.title}</h3>
-        <button className="close-btn" type="button" data-close-app aria-label="Cerrar aplicación">×</button>
+        <button className="close-btn" type="button" data-close-app onClick={onClose} aria-label="Cerrar aplicación">×</button>
       </header>
       <div className="app-body">{children}</div>
     </section>
   );
 }
 
-function ProjectsPanel({ projects, editorOpen, editingProjectId }) {
+function ProjectsPanel({ projects, editorOpen, editingProjectId, projectsStatus, projectsError, projectsSaveError, onRestoreDefaults }) {
   const editingProject = projects.find((project) => project.id === editingProjectId) || projects[0];
 
   return (
@@ -95,29 +95,51 @@ function ProjectsPanel({ projects, editorOpen, editingProjectId }) {
           <p className="projects-kicker">PROYECTOS DESTACADOS</p>
           <p className="projects-note">Contenido editable en este navegador, sin backend.</p>
         </div>
-        <button className="action-btn editor-toggle" type="button" data-project-editor-toggle>
+        <button className="action-btn editor-toggle" type="button" data-project-editor-toggle disabled={projectsStatus !== 'ready' || !editingProject}>
           Configurar proyectos
         </button>
       </div>
 
-      <div className="project-grid">
-        {projects.map((project) => (
-          <article className="project-item" key={project.id}>
-            <div className="project-thumb">
-              {project.image ? <img src={project.image} alt={`Imagen de ${project.title}`} /> : <VitaIcon type="projects" />}
-            </div>
-            <div className="project-copy">
-              <h4>{project.title}</h4>
-              <p>{project.description}</p>
-              <div className="project-tags">{project.tags.map((tag) => <span className="tag" key={tag}>{tag}</span>)}</div>
-              <div className="project-actions">
-                {project.url && <a className="project-link" href={project.url} target="_blank" rel="noreferrer">Ver repositorio</a>}
-                <button className="project-edit-btn" type="button" data-project-edit={project.id}>Editar</button>
+      {projectsStatus === 'loading' && <div className="projects-state" role="status">Cargando proyectos guardados…</div>}
+
+      {projectsStatus === 'error' && (
+        <div className="projects-state projects-state-error" role="alert">
+          <strong>No se pudieron restaurar los proyectos.</strong>
+          <p>{projectsError}</p>
+          <button className="secondary-btn" type="button" data-project-restore onClick={onRestoreDefaults}>Restaurar proyectos de ejemplo</button>
+        </div>
+      )}
+
+      {projectsStatus === 'empty' && (
+        <div className="projects-state" role="status">
+          <strong>Aún no hay proyectos configurados.</strong>
+          <p>Restaura los ejemplos para comenzar a editarlos.</p>
+          <button className="secondary-btn" type="button" data-project-restore onClick={onRestoreDefaults}>Restaurar proyectos de ejemplo</button>
+        </div>
+      )}
+
+      {projectsStatus === 'ready' && (
+        <div className="project-grid">
+          {projects.map((project) => (
+            <article className="project-item" key={project.id}>
+              <div className="project-thumb">
+                {project.image ? <img src={project.image} alt={`Imagen de ${project.title}`} /> : <VitaIcon type="projects" />}
               </div>
-            </div>
-          </article>
-        ))}
-      </div>
+              <div className="project-copy">
+                <h4>{project.title}</h4>
+                <p>{project.description}</p>
+                <div className="project-tags">{project.tags.map((tag) => <span className="tag" key={tag}>{tag}</span>)}</div>
+                <div className="project-actions">
+                  {project.url && <a className="project-link" href={project.url} target="_blank" rel="noreferrer">Ver repositorio</a>}
+                  <button className="project-edit-btn" type="button" data-project-edit={project.id}>Editar</button>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {projectsSaveError && <p className="projects-state projects-state-error" role="alert">{projectsSaveError}</p>}
 
       {editorOpen && editingProject && (
         <form className="project-editor" data-project-editor key={editingProject.id}>
@@ -148,7 +170,7 @@ function ProjectsPanel({ projects, editorOpen, editingProjectId }) {
   );
 }
 
-const VitaScreen = forwardRef(function VitaScreen({ activeApp, setActiveApp, locked, setLocked, messageSent, setMessageSent, projects, setProjects, projectEditorOpen, setProjectEditorOpen, editingProjectId, setEditingProjectId }, ref) {
+const VitaScreen = forwardRef(function VitaScreen({ activeApp, setActiveApp, locked, setLocked, messageSent, setMessageSent, projects, setProjects, projectsStatus, projectsError, projectsSaveError, onRestoreDefaults, projectEditorOpen, setProjectEditorOpen, editingProjectId, setEditingProjectId }, ref) {
   const clock = useClock();
 
   const selectedApp = activeApp ? apps.find((app) => app.id === activeApp) : null;
@@ -202,7 +224,7 @@ const VitaScreen = forwardRef(function VitaScreen({ activeApp, setActiveApp, loc
         )}
 
         {activeApp === 'projects' && (
-          <ProjectsPanel projects={projects} editorOpen={projectEditorOpen} editingProjectId={editingProjectId} />
+          <ProjectsPanel projects={projects} projectsStatus={projectsStatus} projectsError={projectsError} projectsSaveError={projectsSaveError} onRestoreDefaults={onRestoreDefaults} editorOpen={projectEditorOpen} editingProjectId={editingProjectId} />
         )}
 
         {activeApp === 'skills' && (
@@ -236,27 +258,53 @@ function App() {
   const [messageSent, setMessageSent] = useState(false);
   const [projectEditorOpen, setProjectEditorOpen] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState(defaultProjects[0].id);
-  const [projects, setProjects] = useState(() => {
-    if (typeof window === 'undefined') return defaultProjects;
-    try {
-      const stored = window.localStorage.getItem('fc-vita-projects');
-      const parsed = stored ? JSON.parse(stored) : null;
-      return Array.isArray(parsed) && parsed.length ? parsed : defaultProjects;
-    } catch {
-      return defaultProjects;
-    }
-  });
+  const [projects, setProjects] = useState([]);
+  const [projectsStatus, setProjectsStatus] = useState('loading');
+  const [projectsError, setProjectsError] = useState('');
+  const [projectsSaveError, setProjectsSaveError] = useState('');
+  const [projectsHydrated, setProjectsHydrated] = useState(false);
+  const lastLauncherRef = useRef(null);
   const [modelState, setModelState] = useState({ state: 'loading', message: 'Cargando PS_Vita.glb…' });
   const { isMobile, isPortrait } = viewport;
   const mobileScale = Math.min((window.innerWidth - 32) / 960, (window.innerHeight - 32) / 544);
 
   useEffect(() => {
     try {
-      window.localStorage.setItem('fc-vita-projects', JSON.stringify(projects));
+      const stored = window.localStorage.getItem('fc-vita-projects');
+      if (stored === null) {
+        setProjects(defaultProjects);
+        setProjectsStatus('ready');
+      } else {
+        const parsed = JSON.parse(stored);
+        if (!Array.isArray(parsed)) throw new Error('El formato guardado no es válido.');
+        setProjects(parsed);
+        setProjectsStatus(parsed.length ? 'ready' : 'empty');
+      }
     } catch (error) {
-      console.warn('No se pudieron guardar los proyectos localmente.', error);
+      setProjects([]);
+      setProjectsError(error instanceof Error ? error.message : 'El contenido guardado no se puede leer.');
+      setProjectsStatus('error');
+    } finally {
+      setProjectsHydrated(true);
     }
-  }, [projects]);
+  }, []);
+
+  useEffect(() => {
+    if (!projectsHydrated || projectsStatus === 'error') return;
+    try {
+      window.localStorage.setItem('fc-vita-projects', JSON.stringify(projects));
+      setProjectsSaveError('');
+    } catch (error) {
+      setProjectsSaveError('No se pudieron guardar los cambios en este navegador.');
+    }
+  }, [projects, projectsHydrated, projectsStatus]);
+
+  const restoreDefaults = () => {
+    setProjects(defaultProjects);
+    setProjectsError('');
+    setProjectsSaveError('');
+    setProjectsStatus('ready');
+  };
 
   useEffect(() => {
     const updateViewport = () => setViewport(getViewport());
@@ -267,6 +315,22 @@ function App() {
       window.removeEventListener('orientationchange', updateViewport);
     };
   }, []);
+
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key !== 'Escape') return;
+      if (projectEditorOpen) {
+        setProjectEditorOpen(false);
+        return;
+      }
+      if (!activeApp) return;
+      setActiveApp(null);
+      window.requestAnimationFrame(() => lastLauncherRef.current?.focus());
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [activeApp, projectEditorOpen]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -282,13 +346,35 @@ function App() {
     const cssRenderer = new CSS3DRenderer();
     const screenObject = new CSS3DObject(screenDom);
     let model;
+    let dragging = false;
+    let dragMoved = false;
+    let suppressNextClick = false;
+    let dragStartedOnScreen = false;
+    let returnAnimation;
+    const originalRotation = { x: Math.PI / 2, y: 0 };
+    let dragStartRotation = { ...originalRotation };
+    let dragOffset = { x: 0, y: 0 };
+    let lastPointer = { x: 0, y: 0 };
 
     camera.position.set(0, 0, window.innerWidth < 768 ? 82 : 36);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
+    cssRenderer.domElement.className = 'css3d-layer';
     cssRenderer.domElement.style.position = 'absolute';
     cssRenderer.domElement.style.inset = '0';
     cssRenderer.domElement.style.pointerEvents = 'none';
+    cssRenderer.domElement.style.background = 'transparent';
+    cssRenderer.domElement.style.overflow = 'hidden';
+    cssRenderer.domElement.style.zIndex = '2';
+    cssRenderer.domElement.style.isolation = 'isolate';
+    screenDom.style.transformStyle = 'flat';
+    screenDom.style.backfaceVisibility = 'hidden';
+    screenDom.style.filter = 'none';
+    screenDom.style.backdropFilter = 'none';
+    screenDom.style.webkitBackdropFilter = 'none';
+    renderer.domElement.style.position = 'absolute';
+    renderer.domElement.style.inset = '0';
+    renderer.domElement.style.zIndex = '1';
     renderer.setSize(window.innerWidth, window.innerHeight);
     cssRenderer.setSize(window.innerWidth, window.innerHeight);
     container.append(renderer.domElement, cssRenderer.domElement);
@@ -315,6 +401,69 @@ function App() {
       renderer.render(scene, camera);
       cssRenderer.render(cssScene, camera);
     };
+
+    const isInteractiveScreenTarget = (target) => target instanceof Element
+      && target.closest('button, a, input, textarea, select, label, form');
+
+    const onPointerDown = (event) => {
+      if (event.button !== undefined && event.button !== 0) return;
+      if (isInteractiveScreenTarget(event.target)) return;
+      cancelAnimationFrame(returnAnimation);
+      dragging = true;
+      dragMoved = false;
+      dragStartedOnScreen = event.target instanceof Element && Boolean(event.target.closest('#vita-screen-dom'));
+      dragStartRotation = { x: vitaRoot.rotation.x, y: vitaRoot.rotation.y };
+      dragOffset = { x: 0, y: 0 };
+      lastPointer = { x: event.clientX, y: event.clientY };
+      container.setPointerCapture?.(event.pointerId);
+      event.preventDefault();
+    };
+
+    const onPointerMove = (event) => {
+      if (!dragging) return;
+      const deltaX = event.clientX - lastPointer.x;
+      const deltaY = event.clientY - lastPointer.y;
+      lastPointer = { x: event.clientX, y: event.clientY };
+      dragOffset.x += deltaX;
+      dragOffset.y += deltaY;
+      if (Math.abs(dragOffset.x) + Math.abs(dragOffset.y) > 1) dragMoved = true;
+      const maxTilt = 0.18;
+      const nextRotation = {
+        x: THREE.MathUtils.clamp(dragStartRotation.x + dragOffset.y * 0.003, dragStartRotation.x - maxTilt, dragStartRotation.x + maxTilt),
+        y: THREE.MathUtils.clamp(dragStartRotation.y + dragOffset.x * 0.003, dragStartRotation.y - maxTilt, dragStartRotation.y + maxTilt)
+      };
+      vitaRoot.rotation.set(nextRotation.x, nextRotation.y, vitaRoot.rotation.z);
+      renderScene();
+    };
+
+    const onPointerUp = () => {
+      if (!dragging) return;
+      dragging = false;
+      suppressNextClick = dragMoved && dragStartedOnScreen;
+      const returnFrom = { x: vitaRoot.rotation.x, y: vitaRoot.rotation.y };
+      const returnStartedAt = performance.now();
+      const returnDuration = 320;
+      const returnToOriginal = (now) => {
+        const progress = Math.min(1, (now - returnStartedAt) / returnDuration);
+        const eased = 1 - ((1 - progress) ** 3);
+        vitaRoot.rotation.x = THREE.MathUtils.lerp(returnFrom.x, originalRotation.x, eased);
+        vitaRoot.rotation.y = THREE.MathUtils.lerp(returnFrom.y, originalRotation.y, eased);
+        renderScene();
+        if (progress < 1) returnAnimation = requestAnimationFrame(returnToOriginal);
+      };
+      returnAnimation = requestAnimationFrame(returnToOriginal);
+    };
+
+    const onScreenClickCapture = (event) => {
+      if (!suppressNextClick) return;
+      suppressNextClick = false;
+      event.stopImmediatePropagation();
+    };
+
+    container.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    screenDom.addEventListener('click', onScreenClickCapture, true);
 
     const attachMenuToScreen = (loadedModel) => {
       const screenGroup = loadedModel.getObjectByName('inner_screen_low');
@@ -345,6 +494,10 @@ function App() {
         (localSize.z * screenScale.z / rootScale.z) / 544,
         1
       );
+      // The GLB screen is only a placement reference. Rendering its material
+      // underneath the CSS3D screen creates colored rectangles/halos while
+      // the model is transformed, so keep the HTML surface as the sole screen.
+      screenGroup.visible = false;
       screenObject.visible = true;
       return screenGroup.name;
     };
@@ -393,6 +546,11 @@ function App() {
 
     return () => {
       window.removeEventListener('resize', onResize);
+      container.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      screenDom.removeEventListener('click', onScreenClickCapture, true);
+      cancelAnimationFrame(returnAnimation);
       renderer.dispose();
       if (model) vitaRoot.remove(model);
       container.replaceChildren();
@@ -424,6 +582,7 @@ function App() {
       }
       const appButton = event.target.closest('[data-app-id]');
       if (appButton) {
+        lastLauncherRef.current = appButton;
         const app = apps.find((item) => item.id === appButton.dataset.appId);
         if (app?.external) window.open(app.external, '_blank', 'noopener,noreferrer');
         else if (app) {
@@ -508,7 +667,7 @@ function App() {
       {!isMobile && <>
         <div className="model-status" data-state={modelState.state} role="status" aria-live="polite">{modelState.message}</div>
       <div className="hint-bar"><span className="hint-glyph">✣</span><span>Selecciona una burbuja para abrir una sección del menú</span></div>
-        <VitaScreen ref={screenRef} activeApp={activeApp} setActiveApp={setActiveApp} locked={locked} setLocked={setLocked} messageSent={messageSent} setMessageSent={setMessageSent} projects={projects} setProjects={setProjects} projectEditorOpen={projectEditorOpen} setProjectEditorOpen={setProjectEditorOpen} editingProjectId={editingProjectId} setEditingProjectId={setEditingProjectId} />
+        <VitaScreen ref={screenRef} activeApp={activeApp} setActiveApp={setActiveApp} locked={locked} setLocked={setLocked} messageSent={messageSent} setMessageSent={setMessageSent} projects={projects} setProjects={setProjects} projectsStatus={projectsStatus} projectsError={projectsError} projectsSaveError={projectsSaveError} onRestoreDefaults={restoreDefaults} projectEditorOpen={projectEditorOpen} setProjectEditorOpen={setProjectEditorOpen} editingProjectId={editingProjectId} setEditingProjectId={setEditingProjectId} />
       </>}
 
       {isMobile && isPortrait && (
@@ -524,7 +683,7 @@ function App() {
       {isMobile && !isPortrait && (
         <div className="mobile-interface">
           <div className="mobile-screen-shell" style={{ '--mobile-scale': mobileScale }}>
-            <VitaScreen ref={screenRef} activeApp={activeApp} setActiveApp={setActiveApp} locked={locked} setLocked={setLocked} messageSent={messageSent} setMessageSent={setMessageSent} projects={projects} setProjects={setProjects} projectEditorOpen={projectEditorOpen} setProjectEditorOpen={setProjectEditorOpen} editingProjectId={editingProjectId} setEditingProjectId={setEditingProjectId} />
+            <VitaScreen ref={screenRef} activeApp={activeApp} setActiveApp={setActiveApp} locked={locked} setLocked={setLocked} messageSent={messageSent} setMessageSent={setMessageSent} projects={projects} setProjects={setProjects} projectsStatus={projectsStatus} projectsError={projectsError} projectsSaveError={projectsSaveError} onRestoreDefaults={restoreDefaults} projectEditorOpen={projectEditorOpen} setProjectEditorOpen={setProjectEditorOpen} editingProjectId={editingProjectId} setEditingProjectId={setEditingProjectId} />
           </div>
         </div>
       )}
